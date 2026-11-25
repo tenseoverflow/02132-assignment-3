@@ -11,91 +11,93 @@ class Accelerator extends Module {
     val writeEnable = Output(Bool ())
     val dataWrite = Output(UInt (32.W))
 
-    val x = Reg(UInt (16.W))
-    val y = Reg(UInt (16.W))
-    val window = Reg(UInt (41.W))
-    val state = Reg(UInt (2.W))
   })
+  val x = RegInit(0.U(16.W))
+  val y = RegInit(0.U(16.W))
+  val window = RegInit(VecInit(Seq.fill(41)(0.U(1.W))))
+  val state = RegInit(0.U(3.W))
 
   //Write here your code
-  start := false.B
-  address := 0.U
-  dataWrite := 0.U
-  done := false.B
+  io.address := 0.U
+  io.dataWrite := 0.U
+  io.writeEnable := false.B
+  io.done := false.B
 
-  io.state = 0.U
-
-  // we could have it as an infinite loop as well per fsmd
-  while done === false.B {
-    io.state match {
-      case 0.U => {
-        if (io.start) {
-          io.state = 1.U
-          io.x = 0
-          io.y = 0
+    switch(state) {
+      is(0.U)  {
+        when (io.start) {
+          state := 1.U
+          x := 0.U
+          y := 0.U
         }
       }
       // prefill
-      case 1.U => {
-        io.address := io.x
-        io.window := dataRead
+      is(1.U)  {
+        io.address := x
+        for (i <- 0 until 40) {
+          window(i) := window(i + 1)
+        }
+        window(40) := io.dataRead =/= 0.U
 
-        .when (io.x < 19) {
-          io.x := io.x + 1.U
-        } .otherwise {
-          io.x := 0.U
-          io.state = 2.U
+        when (x < 19.U) {
+          x := x + 1.U
+        } .otherwise {
+          x := 0.U
+          state := 2.U
         }
       }
       // readDown
-      case 2.U => {
-        io.address := io.x + io.y * 20 + 20
-        io.window := dataRead
-        io.state = 3.U
+      is(2.U)  {
+        io.address := x + y * 20.U + 20.U
+        for (i <- 0 until 40) {
+          window(i) := window(i + 1)
+        }
+        window(40) := io.dataRead =/= 0.U
+        state := 3.U
       }
       // write
-      case 3.U => {
-        io.address := io.x + 20 * io.y + 400
+      is(3.U)  {
+        io.address := x + y * 20.U + 400.U
         io.writeEnable := true.B
         
-        .when (x == 0 || x == 19 || y == 0) {
+        when (x === 0.U || x === 19.U || y === 0.U || y === 19.U) {
           io.dataWrite := 0.U
         } .otherwise {
-          .when (io.window(0) && io.window(19) && io.window(20) && io.window(21) && io.window(40)) {
-            io.dataWrite := 1.U
+          when ((window(0) === 1.U) && (window(19) === 1.U) && (window(20) === 1.U) && (window(21) === 1.U) && (window(40) === 1.U)) {
+            io.dataWrite := 255.U
           } .otherwise {
             io.dataWrite := 0.U
           }
         }
 
-        .when (io.x < 19) {
-          io.x := io.x + 1.U
-          io.state = 1.U
-        } .elsewhen (io.y != 18 && io.x == 19) {
-          io.x := 0.U
-          io.y := io.y + 1.U
-        } .elsewhen (io.y == 18 && io.x == 19) {
-          io.y := 0.U
-          io.x := 0.U
-          io.state = 4.U
+        when (x < 19.U) {
+          x := x + 1.U
+          state := 2.U
+        } .elsewhen ((y =/= 18.U) && (x === 19.U)) {
+          x := 0.U
+          y := y + 1.U
+          state := 2.U
+        } .elsewhen ((y === 18.U) && (x === 19.U)) {
+          y := 0.U
+          x := 0.U
+          state := 4.U
         }
       }
       // writeLast
-      case 4.U => {
-        io.address := io.x + 780
+      is(4.U)  {
+        io.address := x + 780.U
         io.writeEnable := true.B
         io.dataWrite := 0.U
 
-        .when (io.x < 19) {
-          io.x := io.x + 1.U
+        when (x < 19.U) {
+          x := x + 1.U
         } .otherwise {
-          io.state = 5.U
+          state := 5.U
         }
       }
       // done
-      case 5.U => {
-        done := true.B
+      is(5.U) {
+        io.done := true.B
       }
     }
-  }
 }

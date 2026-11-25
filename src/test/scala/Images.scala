@@ -100,7 +100,7 @@ object Images{
   )
 
   def printImage(image: util.ArrayList[Int]): Unit = {
-    System.out.print("Legend: @=>white, .=>black, ?=>invalid\r\n")
+    System.out.print("Legend: @white, .black, ?invalid\r\n")
     for (y <- 0 to 19) {
       for (x <- 0 to 19) {
         if (image.get(x + 20 * y) == 0) {
